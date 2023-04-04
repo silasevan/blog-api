@@ -85,7 +85,7 @@ const post_comment =  asyncHandler(async(req, res) => {
       res.status(500).json({ error: 'Server error' });
     }
   });
-  
+
 // end point to delete comment in a blog post
 
 const delete_blog_comment = asyncHandler(async (req, res) => {
@@ -104,6 +104,12 @@ const delete_blog_comment = asyncHandler(async (req, res) => {
     // If the blog post is not found, return a 404 error
     if (!result) {
       return res.status(404).json({ error: 'Post not found' });
+    }
+      // Delete comment from comment collection
+    const deletedComment = await Comment.findOneAndDelete({ _id: req.params.commentId });
+    // If comment not found
+    if (!deletedComment) {
+      return res.status(404).json({ error: 'Comment not found' });
     }
 
     // Return a success message
