@@ -15,7 +15,7 @@ router.route("/").get(get_blog_post).post(protect, add_blog_post);
 router
   .route("/:id")
   .get(detail_blog_post)
-  .put(update_blog_post)
+  .put(protect, update_blog_post)
   .delete(protect, delete_Blog_post);
 router.route("/:id/comments").post(protect, post_comment);
 router.route("/:id/comments/:commentId").delete(protect, delete_blog_comment);

@@ -34,32 +34,32 @@ const add_blog_post = asyncHandler(async (req, res) => {
 // update a blog post
 
 const update_blog_post = asyncHandler(async (req, res) => {
-  try {
-    const blog = await BlogPost.findById(req.params.id);
-    if (!blog) {
-      res.status(400);
-      throw new Error("Blog post  not found");
-    }
-    const user = await BlogUser.findById(req.user.id);
-    //chheck for user
-    if (!user) {
-      res.status(401);
-      throw new Error("User not found");
-    }
-    if (blog.user.toString() !== user.id) {
-      res.status(401);
-      throw new Error("User not authorized");
-    }
+  const postId = req.params.id;
 
-    const postId = req.params.id;
-    const updatedPost = req.body;
-    const result = await BlogPost.findByIdAndUpdate(postId, updatedPost, {
-      new: true,
-    });
-    res.status(200).json(result);
-  } catch (error) {
-    next(error);
+  const blog = await BlogPost.findById(postId);
+  if (!blog) {
+    return res.status(404).json({ error: "Blog post not found" });
   }
+
+  const userId = req.user?._id;
+  if (!userId) {
+    return res.status(401).json({ error: "User not authenticated" });
+  }
+
+  const user = await BlogUser.findById(userId);
+  if (!user) {
+    return res.status(404).json({ error: "User not found" });
+  }
+
+  if (blog.user.toString() !== userId.toString()) {
+    return res.status(403).json({ error: "User not authorized" });
+  }
+
+  const updatedPost = req.body;
+  const result = await BlogPost.findByIdAndUpdate(postId, updatedPost, {
+    new: true,
+  });
+  res.status(200).json(result);
 });
 
 // GET /posts/:id route handler to retrieve a single blog post with comments
@@ -77,7 +77,19 @@ const detail_blog_post = asyncHandler(async (req, res) => {
 const post_comment = asyncHandler(async (req, res) => {
   try {
     const post = await BlogPost.findById(req.params.id);
+    if (!post) {
+      return res.status(404).json({ error: "Post not found" });
+    }
+    const userId = req.user?._id;
+    if (!userId) {
+      return res.status(401).json({ error: "User not authenticated" });
+    }
+    const user = await BlogUser.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
     const comment = new Comment(req.body);
+    comment.user = userId;
     post.comments.push(comment);
     await Promise.all([comment.save(), post.save()]);
     res.status(201).json(comment);
@@ -91,7 +103,26 @@ const post_comment = asyncHandler(async (req, res) => {
 
 const delete_Blog_post = asyncHandler(async (req, res) => {
   try {
-    const post = await BlogPost.findByIdAndDelete(req.params.id);
+    const postId = req.params.id;
+
+    const blog = await BlogPost.findById(postId);
+    if (!blog) {
+      return res.status(404).json({ error: "Blog post not found" });
+    }
+    const userId = req.user?._id;
+    if (!userId) {
+      return res.status(401).json({ error: "User not authenticated" });
+    }
+
+    const user = await BlogUser.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    if (blog.user.toString() !== userId.toString()) {
+      return res.status(403).json({ error: "User not authorized" });
+    }
+    const post = await BlogPost.findByIdAndDelete(blog);
     if (!post) {
       return res.status(404).json({ error: "Post not found" });
     }
@@ -107,7 +138,6 @@ const delete_Blog_post = asyncHandler(async (req, res) => {
 const delete_blog_comment = asyncHandler(async (req, res) => {
   try {
     const postId = req.params.id;
-    console.log(postId);
     const commentId = req.params.commentId;
 
     // Find the blog post by ID and remove the comment by ID
@@ -121,14 +151,34 @@ const delete_blog_comment = asyncHandler(async (req, res) => {
     if (!result) {
       return res.status(404).json({ error: "Post not found" });
     }
-    // Delete comment from comment collection
-    const deletedComment = await Comment.findOneAndDelete({
-      _id: req.params.commentId,
-    });
-    // If comment not found
-    if (!deletedComment) {
+
+    // Check if user is authenticated
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: "User not authenticated" });
+    }
+
+    // Find user by ID
+    const user = await BlogUser.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Find the comment to be deleted
+    const comment = result.comments.find(
+      (comment) => comment._id.toString() === commentId.toString()
+    );
+
+    // Check if user is authorized to delete the comment
+    if (!comment) {
       return res.status(404).json({ error: "Comment not found" });
     }
+    if (comment.user.toString() !== userId.toString()) {
+      return res.status(403).json({ error: "User not authorized" });
+    }
+
+    // Delete comment from comment collection
+    const deletedComment = await Comment.findByIdAndDelete(commentId);
 
     // Return a success message
     res.status(200).json({ message: "Comment deleted successfully" });
